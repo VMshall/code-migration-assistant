@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Migration Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <header class="border-b border-gray-800 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex items-center gap-3">
+      <span class="text-xl">🔄</span>
+      <h1 class="text-xl font-semibold">Code Migration Assistant</h1>
+      <span class="text-xs text-gray-500 ml-auto">powered by Claude</span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8 space-y-6">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-wrap gap-4 items-end">
+      <div class="flex-1 min-w-40">
+        <label class="text-xs text-gray-500 mb-1 block">From</label>
+        <input id="fromFw" type="text" placeholder="e.g. React class components" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500" value="React class components">
+      </div>
+      <div class="text-gray-600 text-xl pb-2">→</div>
+      <div class="flex-1 min-w-40">
+        <label class="text-xs text-gray-500 mb-1 block">To</label>
+        <input id="toFw" type="text" placeholder="e.g. React hooks" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500" value="React hooks (functional components)">
+      </div>
+      <div class="flex-1 min-w-48">
+        <label class="text-xs text-gray-500 mb-1 block">Notes (optional)</label>
+        <input id="notes" type="text" placeholder="Any specific requirements" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+      </div>
+      <button onclick="migrate()" class="bg-amber-600 hover:bg-amber-500 text-white font-medium px-6 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">Migrate Code</button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Source Code</div>
+        <textarea id="sourceCode" rows="18" placeholder="Paste code to migrate..." class="w-full bg-gray-900 border border-gray-700 rounded-xl p-4 font-mono text-sm focus:outline-none focus:border-amber-500 resize-none"></textarea>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-gray-500 uppercase tracking-wider">Migrated Code</span>
+          <button onclick="copyMigrated()" id="copyBtn" class="hidden text-xs text-amber-400 hover:text-amber-300">Copy</button>
+        </div>
+        <div id="migratedBox" class="bg-gray-900 border border-gray-700 rounded-xl p-4 font-mono text-sm text-gray-300 min-h-64 whitespace-pre-wrap overflow-auto" style="min-height:18rem">
+          <span class="text-gray-600">Migrated code will appear here...</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading" class="hidden text-center py-6 text-gray-400">
+      <div class="inline-block animate-spin rounded-full h-7 w-7 border-2 border-amber-400 border-t-transparent mb-2"></div>
+      <p class="text-sm">Migrating code…</p>
+    </div>
+
+    <div id="changeLog" class="hidden space-y-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <span id="confidenceBadge" class="text-xs px-2 py-1 rounded font-semibold"></span>
+          <h3 class="text-sm font-semibold text-amber-400 uppercase tracking-wider">Changes</h3>
+        </div>
+        <div id="changes" class="space-y-2"></div>
+      </div>
+      <div id="breakingBox" class="hidden bg-red-950/40 border border-red-800 rounded-xl p-4">
+        <h4 class="text-sm font-semibold text-red-400 mb-2">⚠ Breaking Changes — Manual Action Required</h4>
+        <ul id="breaking" class="space-y-1"></ul>
+      </div>
+      <div id="warningsBox" class="hidden bg-yellow-950/40 border border-yellow-800 rounded-xl p-4">
+        <h4 class="text-sm font-semibold text-yellow-400 mb-2">Warnings</h4>
+        <ul id="warnings" class="space-y-1"></ul>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = '';
+    let migratedCode = '';
+
+    async function migrate() {
+      const sourceCode = document.getElementById('sourceCode').value.trim();
+      if (!sourceCode) return;
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('changeLog').classList.add('hidden');
+      document.getElementById('migratedBox').innerHTML = '<span class="text-gray-600">Migrating…</span>';
+      try {
+        const res = await fetch(`${API}/migrate`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ source_code: sourceCode, from_framework: document.getElementById('fromFw').value, to_framework: document.getElementById('toFw').value, notes: document.getElementById('notes').value })
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail);
+        migratedCode = d.migrated_code;
+        document.getElementById('migratedBox').textContent = d.migrated_code;
+        document.getElementById('copyBtn').classList.remove('hidden');
+
+        const confColors = { high: 'bg-emerald-800 text-emerald-300', medium: 'bg-yellow-800 text-yellow-300', low: 'bg-red-800 text-red-300' };
+        document.getElementById('confidenceBadge').className = `text-xs px-2 py-1 rounded font-semibold ${confColors[d.confidence] || confColors.medium}`;
+        document.getElementById('confidenceBadge').textContent = `${d.confidence} confidence — ${d.confidence_reason}`;
+
+        document.getElementById('changes').innerHTML = d.changes.map(c => `
+          <div class="flex gap-2 items-start bg-gray-800/50 rounded-lg p-3">
+            ${c.breaking ? '<span class="text-xs bg-red-800 text-red-300 px-1.5 py-0.5 rounded shrink-0">BREAKING</span>' : ''}
+            <div><div class="text-sm font-medium">${c.description}</div><div class="text-xs text-gray-500">${c.reason}</div></div>
+          </div>`).join('');
+
+        if (d.breaking_changes?.length) {
+          document.getElementById('breaking').innerHTML = d.breaking_changes.map(b => `<li class="text-sm text-red-300 flex gap-2"><span>•</span>${b}</li>`).join('');
+          document.getElementById('breakingBox').classList.remove('hidden');
+        }
+        if (d.warnings?.length) {
+          document.getElementById('warnings').innerHTML = d.warnings.map(w => `<li class="text-sm text-yellow-300 flex gap-2"><span>•</span>${w}</li>`).join('');
+          document.getElementById('warningsBox').classList.remove('hidden');
+        }
+        document.getElementById('changeLog').classList.remove('hidden');
+      } catch(e) { alert('Error: ' + e.message); document.getElementById('migratedBox').innerHTML = '<span class="text-red-400">' + e.message + '</span>'; }
+      finally { document.getElementById('loading').classList.add('hidden'); }
+    }
+    function copyMigrated() { navigator.clipboard.writeText(migratedCode); }
+  </script>
+</body>
+</html>
